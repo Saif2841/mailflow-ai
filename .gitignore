@@ -1,0 +1,65 @@
+###> Symfony ###
+# .env.local files contain sensitive data (API keys, passwords)
+.env.local
+.env.local.php
+.env.*.local
+
+# Vendor directory
+/vendor/
+/var/
+/vendor-bin/
+
+# Cache and logs
+/var/cache/
+/var/log/
+/var/sessions/
+
+# Build files
+/public/bundles/
+/public/build/
+
+# Symfony specific
+.phpunit.result.cache
+/phpunit.xml
+
+###> Docker ###
+# Docker volumes data
+docker/volumes/
+
+###> Storage ###
+# Local storage (using Supabase Storage instead)
+/storage/invoices/*
+/storage/temp/*
+/storage/processed/*
+!storage/.gitkeep
+
+###> IDE ###
+# VS Code
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+###> Python ###
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+###> Logs ###
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+###> OS ###
+Thumbs.db

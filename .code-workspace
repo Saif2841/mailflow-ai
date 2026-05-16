@@ -1,0 +1,40 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "php.validate.executablePath": "${workspaceFolder}/docker/php-fpm/usr/local/bin/php",
+    "intelephense.files.maxSize": 5000000,
+    "intelephense.completion.insertUseDeclaration": true,
+    "intelephense.completion.fullyQualifyGlobalConstantsAndFunctions": true,
+    "files.associations": {
+      "*.twig": "twig"
+    },
+    "files.exclude": {
+      "**/.git": true,
+      "**/.svn": true,
+      "**/.hg": true,
+      "**/CVS": true,
+      "**/.DS_Store": true,
+      "**/node_modules": true,
+      "**/vendor": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "bmewburn.vscode-intelephense",
+      "symfony.symfony-vscode",
+      "ms-azuretools.vscode-docker",
+      "rangav.vscode-thunder-client",
+      "eamodio.gitlens",
+      "supabase.supabase-vscode",
+      "humao.rest-client",
+      "mikestead.dotenv",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "streetsidesoftware.code-spell-checker"
+    ]
+  }
+}
