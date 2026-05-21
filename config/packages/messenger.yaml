@@ -1,0 +1,8 @@
+framework:
+    messenger:
+        transports:
+            async: 'sync://'
+
+        routing:
+            'App\Message\ProcessEmailMessage': async
+            'App\Message\EmailReceivedMessage': async

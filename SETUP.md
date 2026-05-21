@@ -3,8 +3,8 @@
 ## 1. Create Symfony Project
 
 ```bash
-# Create new Symfony 7.1 project
-composer create-project symfony/skeleton:^7.1 .
+# Create new Symfony 7.4 project
+composer create-project symfony/skeleton:"7.4.*" .
 
 # Or if you already have the project structure
 composer require symfony/web-app
@@ -13,34 +13,14 @@ composer require symfony/web-app
 ## 2. Install Required Symfony Bundles
 
 ```bash
-# Core Symfony bundles
-composer require symfony/console
-composer require symfony/dotenv
-composer require symfony/flex
-composer require symfony/framework-bundle
-composer require symfony/routing
-composer require symfony/twig-bundle
-composer require symfony/asset
-composer require symfony/maker-bundle --dev
+# Web app meta-package (recommended)
+composer require symfony/web-app
 
-# Database and ORM (for Supabase connection)
-composer require doctrine/doctrine-bundle
-composer require doctrine/dbal
+# Core bundles and components
+composer require symfony/http-client symfony/messenger symfony/redis-messenger symfony/serializer symfony/validator symfony/monolog-bundle symfony/mime symfony/uid nyholm/psr7
 
-# Messenger for queue system (Redis)
-composer require symfony/messenger
-
-# HTTP Client for API calls
-composer require symfony/http-client
-composer require nyholm/psr7
-
-# Supabase PHP SDK
-composer require supabase-community/supabase-php
-
-# Additional useful bundles
-composer require symfony/monolog-bundle
-composer require symfony/validator
-composer require symfony/serializer
+# Dev tools
+composer require --dev symfony/maker-bundle symfony/debug-bundle symfony/var-dumper
 ```
 
 ## 3. Configure Symfony for Docker

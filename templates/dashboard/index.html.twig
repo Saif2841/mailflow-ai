@@ -1,0 +1,102 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Inbox{% endblock %}
+
+{% block body %}
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap');
+    body { background: linear-gradient(135deg, #f6f3ea 0%, #f3f7ff 55%, #fef6f1 100%); }
+    .example-wrapper { margin: 2rem auto; max-width: 1100px; width: 95%; font: 16px/1.6 "Space Grotesk", sans-serif; color: #1d1b16; }
+    .page-title { font-size: 2.2rem; margin-bottom: 0.5rem; }
+    .subtle { color: #5a544b; }
+    .filters { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 0.75rem; margin: 1.5rem 0; }
+    .filters input, .filters select { padding: 0.6rem 0.8rem; border-radius: 10px; border: 1px solid #d6d1c8; background: #fff; font: inherit; }
+    .filters button { padding: 0.6rem 1.2rem; border-radius: 10px; border: 0; background: #1d1b16; color: #fff; font-weight: 600; cursor: pointer; }
+    .table-wrap { background: #fff; border-radius: 16px; box-shadow: 0 12px 30px rgba(20, 16, 10, 0.08); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.9rem 1rem; text-align: left; vertical-align: top; }
+    thead { background: #f5f1e6; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    tbody tr { border-top: 1px solid #efe9dc; }
+    .badge { display: inline-flex; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge.pending { background: #ffe9b6; color: #8a5a00; }
+    .badge.processing { background: #cfe7ff; color: #0b4a6f; }
+    .badge.done { background: #d9f7e3; color: #0a5a3a; }
+    .badge.failed { background: #ffd6d6; color: #7a0b0b; }
+    .attachments { font-size: 0.85rem; color: #4f4a42; }
+    .attachments span { display: block; }
+    .empty-state { padding: 1.5rem; background: #fff; border-radius: 16px; box-shadow: 0 12px 30px rgba(20, 16, 10, 0.08); }
+    @media (max-width: 900px) {
+        .filters { grid-template-columns: 1fr; }
+        thead { display: none; }
+        table, tbody, tr, td { display: block; width: 100%; }
+        tbody tr { padding: 1rem; }
+        td { padding: 0.4rem 0; }
+    }
+</style>
+
+<div class="example-wrapper">
+    <h1 class="page-title">Inbox</h1>
+    <p class="subtle">Live email intake from Supabase. Filter by status, keyword, or attachments.</p>
+
+    <form method="get" class="filters">
+        <input type="text" name="q" placeholder="Search subject" value="{{ filters.q }}">
+        <select name="status">
+            <option value="">All statuses</option>
+            <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="processing" {% if filters.status == 'processing' %}selected{% endif %}>Processing</option>
+            <option value="done" {% if filters.status == 'done' %}selected{% endif %}>Done</option>
+            <option value="failed" {% if filters.status == 'failed' %}selected{% endif %}>Failed</option>
+        </select>
+        <select name="has_attachments">
+            <option value="">All</option>
+            <option value="true" {% if filters.has_attachments == 'true' %}selected{% endif %}>Has attachments</option>
+            <option value="false" {% if filters.has_attachments == 'false' %}selected{% endif %}>No attachments</option>
+        </select>
+        <button type="submit">Apply</button>
+    </form>
+
+    {% if emails is empty %}
+        <div class="empty-state">No emails yet.</div>
+    {% else %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Received</th>
+                        <th>From</th>
+                        <th>Subject</th>
+                        <th>Status</th>
+                        <th>Attachments</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for email in emails %}
+                        {% set emailAttachments = attachments[email.id]|default([]) %}
+                        <tr>
+                            <td>{{ email.received_at }}</td>
+                            <td>{{ email.sender_email }}</td>
+                            <td>{{ email.subject }}</td>
+                            <td>
+                                <span class="badge {{ email.processing_status }}">
+                                    {{ email.processing_status }}
+                                </span>
+                            </td>
+                            <td class="attachments">
+                                {% if emailAttachments is empty %}
+                                    <span>None</span>
+                                {% else %}
+                                    {% for attachment in emailAttachments %}
+                                        <span>{{ attachment.filename }} <em>({{ attachment.supabase_storage_path }})</em></span>
+                                    {% endfor %}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+
+{% include 'dashboard/_realtime_snippet.html.twig' %}
+{% endblock %}

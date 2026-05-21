@@ -23,355 +23,316 @@
 
 ## 3. Create Database Tables
 
-### emails table
+## 3. Create Database Tables
+
 - [ ] Go to SQL Editor > New Query
 - [ ] Run this SQL:
 
 ```sql
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 CREATE TABLE emails (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    gmail_message_id VARCHAR(255) UNIQUE NOT NULL,
-    subject TEXT NOT NULL,
-    sender VARCHAR(255) NOT NULL,
-    recipient VARCHAR(255) NOT NULL,
-    received_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    processed_at TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(50) DEFAULT 'pending',
-    has_attachment BOOLEAN DEFAULT FALSE,
-    attachment_url TEXT,
-    ocr_text TEXT,
-    ai_summary TEXT,
-    ai_category VARCHAR(100),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    message_id text UNIQUE NOT NULL,
+    thread_id text,
+    sender_email text NOT NULL,
+    sender_name text,
+    recipient_inbox text,
+    subject text,
+    body_text text,
+    body_html text,
+    received_at timestamptz NOT NULL,
+    has_attachments boolean DEFAULT false,
+    processing_status text DEFAULT 'pending' CHECK (processing_status IN ('pending','processing','done','failed')),
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
 );
 
-CREATE INDEX idx_emails_status ON emails(status);
+CREATE TABLE email_attachments (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    email_id uuid REFERENCES emails(id) ON DELETE CASCADE,
+    filename text NOT NULL,
+    original_filename text,
+    supabase_storage_path text,
+    mime_type text,
+    file_size bigint,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE ai_classifications (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    email_id uuid REFERENCES emails(id) ON DELETE CASCADE,
+    category text CHECK (category IN ('vendor_invoice','refund_request','return_request','shipping_issue','order_status','product_question','customer_complaint','payment_followup','approval_response','spam','unknown')),
+    confidence float,
+    requires_human_review boolean DEFAULT false,
+    extracted_summary text,
+    raw_response text,
+    model_used text DEFAULT 'llama3.1:8b',
+    classified_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE invoice_records (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    email_id uuid REFERENCES emails(id),
+    attachment_id uuid REFERENCES email_attachments(id),
+    vendor_name text,
+    invoice_number text UNIQUE,
+    invoice_date date,
+    due_date date,
+    amount numeric(12,2),
+    currency text DEFAULT 'USD',
+    description text,
+    project_name text,
+    expense_category text,
+    received_date date DEFAULT CURRENT_DATE,
+    approval_status text DEFAULT 'pending' CHECK (approval_status IN ('pending','approved','rejected','needs_info')),
+    approver_role text,
+    approver_email text,
+    approved_at timestamptz,
+    payment_status text DEFAULT 'unpaid' CHECK (payment_status IN ('unpaid','scheduled','paid')),
+    payment_date date,
+    quickbooks_csv_exported boolean DEFAULT false,
+    stamped_file_storage_path text,
+    original_file_storage_path text,
+    duplicate_of_id uuid REFERENCES invoice_records(id),
+    notes text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE approval_requests (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    invoice_id uuid REFERENCES invoice_records(id),
+    case_id uuid,
+    token text UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex'),
+    approver_email text NOT NULL,
+    approver_role text,
+    status text DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','expired')),
+    responded_at timestamptz,
+    expires_at timestamptz DEFAULT (now() + interval '7 days'),
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE orders (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    order_number text UNIQUE NOT NULL,
+    customer_name text,
+    customer_email text,
+    product_name text,
+    product_sku text,
+    quantity int,
+    total_amount numeric(10,2),
+    order_date date,
+    shipping_status text,
+    tracking_number text,
+    carrier text,
+    delivery_address text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE customer_cases (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    email_id uuid REFERENCES emails(id),
+    order_id uuid REFERENCES orders(id),
+    customer_email text NOT NULL,
+    case_type text CHECK (case_type IN ('refund','return','shipping','product_question','complaint','other')),
+    urgency text DEFAULT 'medium' CHECK (urgency IN ('low','medium','high','critical')),
+    status text DEFAULT 'open' CHECK (status IN ('open','pending_reply','escalated','resolved','closed')),
+    assigned_to text,
+    draft_reply text,
+    final_reply text,
+    sent_at timestamptz,
+    resolution_notes text,
+    created_at timestamptz DEFAULT now(),
+    updated_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE case_events (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    case_id uuid REFERENCES customer_cases(id) ON DELETE CASCADE,
+    event_type text NOT NULL,
+    event_data jsonb,
+    actor text DEFAULT 'system',
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE payment_schedules (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    schedule_date date NOT NULL,
+    status text DEFAULT 'draft' CHECK (status IN ('draft','sent','processed')),
+    total_amount numeric(12,2),
+    invoice_count int,
+    csv_storage_path text,
+    sent_at timestamptz,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE payment_schedule_items (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    schedule_id uuid REFERENCES payment_schedules(id) ON DELETE CASCADE,
+    invoice_id uuid REFERENCES invoice_records(id),
+    amount numeric(12,2),
+    notes text
+);
+
+CREATE TABLE audit_logs (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    entity_type text,
+    entity_id uuid,
+    action text NOT NULL,
+    actor text DEFAULT 'system',
+    data jsonb,
+    created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX idx_emails_processing_status ON emails(processing_status);
 CREATE INDEX idx_emails_received_at ON emails(received_at);
-CREATE INDEX idx_emails_gmail_message_id ON emails(gmail_message_id);
+CREATE INDEX idx_invoice_records_approval_status ON invoice_records(approval_status);
+CREATE INDEX idx_invoice_records_payment_status ON invoice_records(payment_status);
+CREATE INDEX idx_customer_cases_status ON customer_cases(status);
+CREATE INDEX idx_customer_cases_urgency ON customer_cases(urgency);
 ```
 
-### invoices table
+## 4. Enable Realtime
+
+- [ ] Go to SQL Editor > New Query
 - [ ] Run this SQL:
 
 ```sql
-CREATE TABLE invoices (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    email_id UUID REFERENCES emails(id) ON DELETE CASCADE,
-    invoice_number VARCHAR(255),
-    vendor VARCHAR(255),
-    amount DECIMAL(10, 2),
-    currency VARCHAR(3) DEFAULT 'USD',
-    invoice_date DATE,
-    due_date DATE,
-    status VARCHAR(50) DEFAULT 'pending',
-    storage_path TEXT,
-    stamped_path TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX idx_invoices_email_id ON invoices(email_id);
-CREATE INDEX idx_invoices_status ON invoices(status);
-CREATE INDEX idx_invoices_invoice_number ON invoices(invoice_number);
+ALTER PUBLICATION supabase_realtime ADD TABLE emails, invoice_records, customer_cases;
 ```
-
-### approvals table
-- [ ] Run this SQL:
-
-```sql
-CREATE TABLE approvals (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    invoice_id UUID REFERENCES invoices(id) ON DELETE CASCADE,
-    approver_id UUID REFERENCES auth.users(id),
-    status VARCHAR(50) DEFAULT 'pending',
-    comments TEXT,
-    approved_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX idx_approvals_invoice_id ON approvals(invoice_id);
-CREATE INDEX idx_approvals_approver_id ON approvals(approver_id);
-CREATE INDEX idx_approvals_status ON approvals(status);
-```
-
-### audit_log table
-- [ ] Run this SQL:
-
-```sql
-CREATE TABLE audit_log (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    entity_type VARCHAR(50) NOT NULL,
-    entity_id UUID NOT NULL,
-    action VARCHAR(50) NOT NULL,
-    user_id UUID REFERENCES auth.users(id),
-    changes JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_log_entity ON audit_log(entity_type, entity_id);
-CREATE INDEX idx_audit_log_user_id ON audit_log(user_id);
-```
-
-## 4. Create Storage Bucket
-
-- [ ] Go to Storage > Create a new bucket
-- [ ] Name: `invoices`
-- [ ] Public bucket: No (keep private)
-- [ ] File size limit: 50MB (for PDFs)
-- [ ] Allowed MIME types: `application/pdf`
-- [ ] Click "Create bucket"
 
 ## 5. Configure Row Level Security (RLS)
 
-### Enable RLS on all tables
 - [ ] Go to SQL Editor > New Query
 - [ ] Run this SQL:
 
 ```sql
 ALTER TABLE emails ENABLE ROW LEVEL SECURITY;
-ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
-ALTER TABLE approvals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
-```
+ALTER TABLE email_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_classifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE approval_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customer_cases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE case_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_schedule_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 
-### Create RLS Policies for emails table
-- [ ] Run this SQL:
-
-```sql
--- Allow authenticated users to read all emails
-CREATE POLICY "Allow authenticated read emails" 
-ON emails FOR SELECT 
-TO authenticated 
-USING (true);
-
--- Allow service role to insert emails
-CREATE POLICY "Allow service role insert emails" 
-ON emails FOR INSERT 
-TO service_role 
-WITH CHECK (true);
-
--- Allow service role to update emails
-CREATE POLICY "Allow service role update emails" 
-ON emails FOR UPDATE 
-TO service_role 
-USING (true);
-
--- Allow service role to delete emails
-CREATE POLICY "Allow service role delete emails" 
-ON emails FOR DELETE 
-TO service_role 
-USING (true);
-```
-
-### Create RLS Policies for invoices table
-- [ ] Run this SQL:
-
-```sql
--- Allow authenticated users to read all invoices
-CREATE POLICY "Allow authenticated read invoices" 
-ON invoices FOR SELECT 
-TO authenticated 
-USING (true);
-
--- Allow service role to insert invoices
-CREATE POLICY "Allow service role insert invoices" 
-ON invoices FOR INSERT 
-TO service_role 
-WITH CHECK (true);
-
--- Allow service role to update invoices
-CREATE POLICY "Allow service role update invoices" 
-ON invoices FOR UPDATE 
-TO service_role 
-USING (true);
-
--- Allow service role to delete invoices
-CREATE POLICY "Allow service role delete invoices" 
-ON invoices FOR DELETE 
-TO service_role 
-USING (true);
-```
-
-### Create RLS Policies for approvals table
-- [ ] Run this SQL:
-
-```sql
--- Allow authenticated users to read approvals
-CREATE POLICY "Allow authenticated read approvals" 
-ON approvals FOR SELECT 
-TO authenticated 
-USING (true);
-
--- Allow authenticated users to insert approvals
-CREATE POLICY "Allow authenticated insert approvals" 
-ON approvals FOR INSERT 
-TO authenticated 
-WITH CHECK (true);
-
--- Allow authenticated users to update their own approvals
-CREATE POLICY "Allow authenticated update own approvals" 
-ON approvals FOR UPDATE 
-TO authenticated 
-USING (auth.uid() = approver_id);
-
--- Allow service role full access
-CREATE POLICY "Allow service role full access approvals" 
-ON approvals FOR ALL 
-TO service_role 
-USING (true);
-```
-
-### Create RLS Policies for audit_log table
-- [ ] Run this SQL:
-
-```sql
--- Allow service role full access to audit_log
-CREATE POLICY "Allow service role full access audit_log" 
-ON audit_log FOR ALL 
-TO service_role 
-USING (true);
-```
-
-## 6. Configure Storage Policies
-
-- [ ] Go to Storage > invoices > Policies
-- [ ] Create policy for authenticated users to read files:
-
-```sql
-CREATE POLICY "Allow authenticated read invoices" 
-ON storage.objects FOR SELECT 
-TO authenticated 
-USING (bucket_id = 'invoices');
-```
-
-- [ ] Create policy for service role to upload files:
-
-```sql
-CREATE POLICY "Allow service role upload invoices" 
-ON storage.objects FOR INSERT 
-TO service_role 
-WITH CHECK (bucket_id = 'invoices');
-```
-
-- [ ] Create policy for service role to delete files:
-
-```sql
-CREATE POLICY "Allow service role delete invoices" 
-ON storage.objects FOR DELETE 
-TO service_role 
-USING (bucket_id = 'invoices');
-```
-
-## 7. Set up Authentication
-
-- [ ] Go to Authentication > Providers
-- [ ] Enable Email provider (default enabled)
-- [ ] Configure email templates if needed
-- [ ] Set up custom SMTP for production (optional)
-
-### Create User Roles
-- [ ] Go to SQL Editor > New Query
-- [ ] Run this SQL to create roles table:
-
-```sql
 CREATE TABLE IF NOT EXISTS user_roles (
-    user_id UUID REFERENCES auth.users(id) PRIMARY KEY,
-    role VARCHAR(50) NOT NULL, -- 'admin', 'approver', 'finance', 'support'
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    user_id uuid REFERENCES auth.users(id) PRIMARY KEY,
+    role text NOT NULL,
+    created_at timestamptz DEFAULT now()
 );
 
--- Insert admin user (replace with actual user ID from auth.users)
-INSERT INTO user_roles (user_id, role) 
-VALUES ('YOUR_USER_ID_HERE', 'admin');
+CREATE OR REPLACE FUNCTION has_role(role_name text)
+RETURNS boolean AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM user_roles
+        WHERE user_id = auth.uid()
+          AND role = role_name
+    );
+$$ LANGUAGE sql STABLE;
+
+CREATE POLICY "admin_all_emails" ON emails
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_email_attachments" ON email_attachments
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_ai_classifications" ON ai_classifications
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_invoice_records" ON invoice_records
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_approval_requests" ON approval_requests
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_orders" ON orders
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_customer_cases" ON customer_cases
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_case_events" ON case_events
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_payment_schedules" ON payment_schedules
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_payment_schedule_items" ON payment_schedule_items
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+CREATE POLICY "admin_all_audit_logs" ON audit_logs
+    FOR ALL USING (has_role('ROLE_ADMIN'));
+
+CREATE POLICY "approver_select_invoice_records" ON invoice_records
+    FOR SELECT USING (has_role('ROLE_APPROVER'));
+CREATE POLICY "approver_update_invoice_records" ON invoice_records
+    FOR UPDATE USING (has_role('ROLE_APPROVER'));
+CREATE POLICY "approver_select_approval_requests" ON approval_requests
+    FOR SELECT USING (has_role('ROLE_APPROVER'));
+CREATE POLICY "approver_update_approval_requests" ON approval_requests
+    FOR UPDATE USING (has_role('ROLE_APPROVER'));
+
+CREATE POLICY "finance_select_invoice_records" ON invoice_records
+    FOR SELECT USING (has_role('ROLE_FINANCE'));
+CREATE POLICY "finance_update_invoice_records" ON invoice_records
+    FOR UPDATE USING (has_role('ROLE_FINANCE'));
+CREATE POLICY "finance_select_payment_schedules" ON payment_schedules
+    FOR SELECT USING (has_role('ROLE_FINANCE'));
+CREATE POLICY "finance_update_payment_schedules" ON payment_schedules
+    FOR UPDATE USING (has_role('ROLE_FINANCE'));
+CREATE POLICY "finance_select_payment_schedule_items" ON payment_schedule_items
+    FOR SELECT USING (has_role('ROLE_FINANCE'));
+CREATE POLICY "finance_update_payment_schedule_items" ON payment_schedule_items
+    FOR UPDATE USING (has_role('ROLE_FINANCE'));
+
+CREATE POLICY "support_select_customer_cases" ON customer_cases
+    FOR SELECT USING (has_role('ROLE_SUPPORT'));
+CREATE POLICY "support_update_customer_cases" ON customer_cases
+    FOR UPDATE USING (has_role('ROLE_SUPPORT'));
+CREATE POLICY "support_select_case_events" ON case_events
+    FOR SELECT USING (has_role('ROLE_SUPPORT'));
+CREATE POLICY "support_update_case_events" ON case_events
+    FOR UPDATE USING (has_role('ROLE_SUPPORT'));
+CREATE POLICY "support_select_orders" ON orders
+    FOR SELECT USING (has_role('ROLE_SUPPORT'));
+CREATE POLICY "support_update_orders" ON orders
+    FOR UPDATE USING (has_role('ROLE_SUPPORT'));
 ```
 
-## 8. Enable Realtime
+## 6. Create updated_at Trigger
 
-- [ ] Go to Database > Replication
-- [ ] Enable Realtime for tables:
-  - [ ] emails
-  - [ ] invoices
-  - [ ] approvals
 - [ ] Go to SQL Editor > New Query
-- [ ] Run this SQL:
-
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE emails;
-ALTER PUBLICATION supabase_realtime ADD TABLE invoices;
-ALTER PUBLICATION supabase_realtime ADD TABLE approvals;
-```
-
-## 9. Create Database Functions
-
-### Updated timestamp trigger
 - [ ] Run this SQL:
 
 ```sql
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
+    NEW.updated_at = now();
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
--- Apply to all tables
 CREATE TRIGGER update_emails_updated_at BEFORE UPDATE ON emails
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices
+CREATE TRIGGER update_invoice_records_updated_at BEFORE UPDATE ON invoice_records
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_approvals_updated_at BEFORE UPDATE ON approvals
+CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_customer_cases_updated_at BEFORE UPDATE ON customer_cases
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 ```
 
-## 10. Test Connection
+## 7. Create Storage Bucket
 
-- [ ] Update your `.env.local` with actual Supabase credentials
-- [ ] Run Symfony command to test connection:
-```bash
-php bin/console doctrine:database:check-connection
+- [ ] Go to SQL Editor > New Query
+- [ ] Run this SQL:
+
+```sql
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('invoices', 'invoices', false)
+ON CONFLICT (id) DO NOTHING;
 ```
+
+## 8. Notes
+
+- The service_role key bypasses RLS. Use it only in backend Symfony services.
+- If you want users to have roles, insert them into `user_roles`.
 - [ ] Verify you can query the database via SQL Editor
-- [ ] Test file upload to Storage bucket
-
-## 11. Configure n8n to Connect to Supabase
-
-- [ ] In n8n, add HTTP Request node
-- [ ] Use Supabase REST API: `https://yourproject.supabase.co/rest/v1/`
-- [ ] Add header: `apikey: YOUR_ANON_KEY`
-- [ ] Add header: `Authorization: Bearer YOUR_ANON_KEY`
-- [ ] Add header: `Content-Type: application/json`
-- [ ] Test with a simple GET request to `/emails`
-
-## 12. Backup Configuration
-
-- [ ] Go to Database > Backups
-- [ ] Enable automated backups (Free tier: 7 days retention)
-- [ ] Note: Manual backups available in Pro tier
-
-## 13. Security Checklist
-
-- [ ] Never commit `.env.local` to version control
-- [ ] Keep `SUPABASE_SERVICE_ROLE_KEY` secret (bypasses RLS)
-- [ ] Use `SUPABASE_ANON_KEY` for client-side operations
-- [ ] Review RLS policies before production
-- [ ] Enable additional authentication providers if needed
-- [ ] Set up IP restrictions in Supabase dashboard (optional)
-
-## 14. Performance Optimization
-
-- [ ] Add indexes to frequently queried columns
-- [ ] Enable connection pooling (Pro tier)
-- [ ] Monitor database size in dashboard
-- [ ] Set up alerts for quota limits (Free tier: 500MB DB, 1GB Storage)
-
-## 15. Documentation
-
-- [ ] Save this checklist for reference
-- [ ] Document any custom SQL queries
-- [ ] Keep track of schema changes
-- [ ] Update `.env.local` template with any new variables

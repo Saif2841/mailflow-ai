@@ -1,0 +1,9 @@
+twig:
+    file_name_pattern: '*.twig'
+    globals:
+        SUPABASE_URL: '%env(SUPABASE_URL)%'
+        SUPABASE_ANON_KEY: '%env(SUPABASE_ANON_KEY)%'
+
+when@test:
+    twig:
+        strict_variables: true
