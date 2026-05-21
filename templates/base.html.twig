@@ -44,6 +44,9 @@
                         <a class="nav-link text-white" href="/payment-schedule">Payment Schedule</a>
                     {% endif %}
                 </nav>
+                <form method="post" action="/logout" class="mt-4">
+                    <button type="submit" class="btn btn-outline-light btn-sm w-100">Log out</button>
+                </form>
             </aside>
             <main class="flex-grow-1 p-4">
                 {% for label, messages in app.flashes %}

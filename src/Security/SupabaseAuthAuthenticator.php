@@ -2,6 +2,7 @@
 
 namespace App\Security;
 
+use App\Service\Supabase\SupabaseRestClient;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -19,10 +20,11 @@ final class SupabaseAuthAuthenticator implements AuthenticatorInterface, Authent
 {
     public function __construct(
         private SupabaseJwtVerifier $verifier,
-        private string $adminEmails = '',
+        private SupabaseRestClient $supabase,
+        private ?string $adminEmails = null,
     )
     {
-        $this->adminEmails = trim($this->adminEmails);
+        $this->adminEmails = trim((string) $this->adminEmails);
     }
 
     public function supports(Request $request): bool
@@ -49,7 +51,7 @@ final class SupabaseAuthAuthenticator implements AuthenticatorInterface, Authent
             throw new AuthenticationException('JWT subject is missing.');
         }
 
-        $roles = $this->mapRoles($claims);
+        $roles = $this->mapRoles($userId, $claims);
 
         return new SelfValidatingPassport(
             new UserBadge($userId, fn () => new SupabaseUser($userId, $roles, $claims))
@@ -97,8 +99,13 @@ final class SupabaseAuthAuthenticator implements AuthenticatorInterface, Authent
         return null;
     }
 
-    private function mapRoles(array $claims): array
+    private function mapRoles(string $userId, array $claims): array
     {
+        $databaseRoles = $this->loadRolesFromDatabase($userId);
+        if ($databaseRoles !== []) {
+            return $databaseRoles;
+        }
+
         $roles = [];
 
         foreach ($this->extractRoleValues($claims) as $roleValue) {
@@ -118,6 +125,27 @@ final class SupabaseAuthAuthenticator implements AuthenticatorInterface, Authent
         $email = strtolower(trim((string) ($claims['email'] ?? '')));
         if ($email !== '' && in_array($email, $this->getAdminEmailAllowlist(), true)) {
             $roles[] = 'ROLE_ADMIN';
+        }
+
+        return array_values(array_unique($roles));
+    }
+
+    private function loadRolesFromDatabase(string $userId): array
+    {
+        if ($userId === '') {
+            return [];
+        }
+
+        $rows = $this->supabase->select('user_roles', [
+            'user_id' => $userId,
+        ]);
+
+        $roles = [];
+        foreach ($rows as $row) {
+            $role = strtoupper(trim((string) ($row['role'] ?? '')));
+            if ($role !== '') {
+                $roles[] = $role;
+            }
         }
 
         return array_values(array_unique($roles));
