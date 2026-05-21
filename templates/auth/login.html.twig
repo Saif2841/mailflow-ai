@@ -1,0 +1,76 @@
+{% extends 'base.html.twig' %}
+
+{% set show_sidebar = false %}
+
+{% block title %}Login{% endblock %}
+
+{% block importmap %}{% endblock %}
+
+{% block body %}
+<div class="container py-5" style="max-width: 420px;">
+    <h1 class="h3 mb-3">Admin Login</h1>
+    <p class="text-muted">Sign in with Supabase Auth.</p>
+
+    <form id="login-form" class="card p-4 shadow-sm">
+        <div class="mb-3">
+            <label class="form-label">Email</label>
+        <input id="login-email" type="email" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+        <input id="login-password" type="password" class="form-control" required>
+        </div>
+      <button id="login-submit" type="submit" class="btn btn-success w-100">Login</button>
+      <div id="login-message" class="text-muted small mt-2"></div>
+    </form>
+</div>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+  const supabase = createClient('{{ SUPABASE_URL }}', '{{ SUPABASE_ANON_KEY }}');
+  const form = document.getElementById('login-form');
+  const emailInput = document.getElementById('login-email');
+  const passwordInput = document.getElementById('login-password');
+  const submitButton = document.getElementById('login-submit');
+  const messageEl = document.getElementById('login-message');
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    submitButton.disabled = true;
+    messageEl.textContent = '';
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: emailInput.value,
+      password: passwordInput.value,
+    });
+
+    if (error) {
+      messageEl.textContent = error.message;
+      submitButton.disabled = false;
+      return;
+    }
+
+    const accessToken = data.session?.access_token;
+    if (!accessToken) {
+      messageEl.textContent = 'Missing access token.';
+      submitButton.disabled = false;
+      return;
+    }
+
+    const response = await fetch('/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: accessToken })
+    });
+
+    if (!response.ok) {
+      messageEl.textContent = 'Unable to save session.';
+      submitButton.disabled = false;
+      return;
+    }
+
+    window.location.href = '/dashboard';
+  });
+</script>
+{% endblock %}

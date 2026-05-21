@@ -26,7 +26,7 @@ final class EmailClassifierService
     ) {
     }
 
-    public function classify(array $email, string $model = 'llama3.1:8b'): array
+    public function classify(array $email, ?string $model = null): array
     {
         $subject = (string) ($email['subject'] ?? '');
         $bodyText = (string) ($email['body_text'] ?? '');
@@ -42,7 +42,11 @@ final class EmailClassifierService
             "Return ONLY a valid JSON object with no explanation:\n".
             "{\"category\": \"...\", \"confidence\": 0.0, \"requires_human_review\": false, \"extracted_summary\": \"one sentence\"}";
 
-        $result = $this->ollama->generateJson($model, $content, $system);
+        if ($model === null || trim($model) === '') {
+            $result = $this->ollama->generateJsonDefault($content, $system);
+        } else {
+            $result = $this->ollama->generateJson($model, $content, $system);
+        }
 
         $category = $result['category'] ?? 'unknown';
         if (!in_array($category, self::CATEGORIES, true)) {
@@ -64,7 +68,7 @@ final class EmailClassifierService
             'requires_human_review' => $requiresHumanReview,
             'extracted_summary' => $summary,
             'raw_response' => json_encode($result),
-            'model_used' => $model,
+            'model_used' => $model ?: 'default',
         ];
 
         $this->supabase->insert('ai_classifications', $classification);

@@ -8,7 +8,7 @@ Production-grade AI-powered email automation system for invoice processing and a
 - **Database**: Supabase (hosted PostgreSQL + REST API + Realtime + Auth + Storage)
 - **Supabase PHP SDK**: supabase-community/supabase-php
 - **Automation Engine**: n8n self-hosted via Docker
-- **AI/LLM**: Ollama (Docker) + Llama 3.1 8B — local, free
+- **AI/LLM**: Ollama-compatible Cloud API (recommended) + Llama 3.1 8B
 - **OCR**: Tesseract OCR (Docker container)
 - **PDF Stamping**: PyMuPDF Python script (Docker)
 - **Email Intake**: Gmail API (free) via n8n
@@ -73,21 +73,31 @@ Follow the checklist in `SUPABASE_SETUP.md` to:
 - Configure RLS policies
 - Enable Realtime
 
-### 5. Install Ollama Model
+### 5. Configure Ollama Cloud
 
-```bash
-# Access Ollama container
-docker exec -it ai_email_ollama bash
+Set the following in `.env.local` for local dev (do not commit secrets):
 
-# Pull Llama 3.1 8B model
-ollama pull llama3.1:8b
-
-# Test the model
-ollama run llama3.1:8b "Hello, how are you?"
-
-# Exit container
-exit
 ```
+LLM_PROVIDER=ollama_cloud
+LLM_BASE_URL=https://ollama.com
+LLM_API_KEY=your_api_key_here
+LLM_MODEL=llama3.1:8b
+```
+
+Production environment variables (set in your hosting provider):
+
+```
+LLM_PROVIDER=ollama_cloud
+LLM_BASE_URL=https://ollama.com
+LLM_API_KEY=prod_api_key_here
+LLM_MODEL=llama3.1:8b
+```
+
+Test with Postman:
+
+- Method: GET
+- URL: http://127.0.0.1:8000/debug/llm-test
+- Expected: {"status":"ok","message":"LLM reachable"}
 
 ### 6. Install Python Dependencies
 
@@ -108,7 +118,7 @@ docker exec -it ai_email_python pip install -r /app/requirements.txt
 
 - **Symfony App**: http://localhost:8080
 - **n8n**: http://localhost:5678 (default: admin/changeme)
-- **Ollama API**: http://localhost:11434
+- **LLM API**: Ollama Cloud base URL (set via LLM_BASE_URL)
 - **Redis**: localhost:6379
 
 ## Project Structure
@@ -236,7 +246,7 @@ docker-compose logs -f php-fpm
 
 ## Security Notes
 
-- Never commit `.env.local` to version control
+- Never commit `.env.local` or API keys to version control
 - Keep `SUPABASE_SERVICE_ROLE_KEY` secret (bypasses RLS)
 - Use `SUPABASE_ANON_KEY` for client-side operations
 - Review RLS policies before production

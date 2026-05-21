@@ -1,0 +1,154 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Emails{% endblock %}
+
+{% block body %}
+<h1 class="h3 mb-4">Emails</h1>
+
+<form class="row g-2 mb-3" method="get" x-data="">
+    <div class="col-md-3">
+        <label class="form-label">Category</label>
+        <select class="form-select" name="category">
+            <option value="">All</option>
+            {% for cat in ['vendor_invoice','refund_request','return_request','shipping_issue','order_status','product_question','customer_complaint','payment_followup','approval_response','spam','unknown'] %}
+                <option value="{{ cat }}" {% if filters.category == cat %}selected{% endif %}>{{ cat|replace({'_':' '}) }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+            <option value="">All</option>
+            {% for s in ['pending','processing','done','failed'] %}
+                <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Start date</label>
+        <input type="date" class="form-control" name="start" value="{{ filters.start }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">End date</label>
+        <input type="date" class="form-control" name="end" value="{{ filters.end }}">
+    </div>
+    <div class="col-md-1 d-flex align-items-end">
+        <button class="btn btn-success w-100" type="submit">Filter</button>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Received</th>
+                    <th>Sender</th>
+                    <th>Subject</th>
+                    <th>AI</th>
+                    <th>Confidence</th>
+                    <th>Status</th>
+                    <th>View</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for email in emails %}
+                    {% set classification = classifications[email.id]|default(null) %}
+                    <tr>
+                        <td>{{ email.received_at }}</td>
+                        <td>{{ email.sender_email }}</td>
+                        <td>{{ email.subject }}</td>
+                        <td>
+                            {% if classification %}
+                                <span class="badge bg-success">{{ classification.category|replace({'_':' '}) }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ classification ? (classification.confidence * 100)|round ~ '%' : '-' }}</td>
+                        <td><span class="badge bg-secondary">{{ email.processing_status }}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="offcanvas"
+                                    data-bs-target="#emailDetails"
+                                    data-email-body="{{ email.body_text|e('html_attr') }}"
+                                    data-email-subject="{{ email.subject|e('html_attr') }}"
+                                    data-email-sender="{{ email.sender_email|e('html_attr') }}"
+                                    data-email-attachments='{{ attachments[email.id]|default([])|json_encode|e('html_attr') }}'
+                                    onclick="window.setEmailDetails(this)">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No emails.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="emailDetails">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title">Email Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <div class="mb-2"><strong>From:</strong> <span id="detailSender"></span></div>
+        <div class="mb-2"><strong>Subject:</strong> <span id="detailSubject"></span></div>
+        <div class="mb-3">
+            <strong>Body</strong>
+            <div id="detailBody" class="small text-muted"></div>
+        </div>
+        <div>
+            <strong>Attachments</strong>
+            <ul id="detailAttachments" class="small"></ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.setEmailDetails = (button) => {
+        const body = button.getAttribute('data-email-body') || '';
+        const subject = button.getAttribute('data-email-subject') || '';
+        const sender = button.getAttribute('data-email-sender') || '';
+        const attachmentsJson = button.getAttribute('data-email-attachments') || '[]';
+        let attachments = [];
+
+        try {
+            attachments = JSON.parse(attachmentsJson);
+        } catch (e) {
+            attachments = [];
+        }
+
+        document.getElementById('detailBody').textContent = body;
+        document.getElementById('detailSubject').textContent = subject;
+        document.getElementById('detailSender').textContent = sender;
+
+        const list = document.getElementById('detailAttachments');
+        list.innerHTML = '';
+        if (attachments.length === 0) {
+            const li = document.createElement('li');
+            li.textContent = 'No attachments';
+            list.appendChild(li);
+            return;
+        }
+
+        attachments.forEach((att) => {
+            const li = document.createElement('li');
+            const link = document.createElement('a');
+            link.textContent = att.filename || 'attachment';
+            if (att.signed_url) {
+                link.href = att.signed_url;
+                link.target = '_blank';
+                link.rel = 'noopener';
+            }
+            li.appendChild(link);
+            list.appendChild(li);
+        });
+    };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}

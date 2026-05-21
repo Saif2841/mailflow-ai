@@ -127,6 +127,34 @@ ollama run llama3.1:8b "Hello, how are you?"
 exit
 ```
 
+## 8.1 Ollama Cloud (Recommended for Deployment)
+
+Set these in your local `.env.local` (do not commit secrets):
+
+```bash
+LLM_PROVIDER=ollama_cloud
+LLM_BASE_URL=https://ollama.com
+LLM_API_KEY=your_api_key_here
+LLM_MODEL=llama3.1:8b
+```
+
+Production environment variables (set in your hosting provider):
+
+```
+LLM_PROVIDER=ollama_cloud
+LLM_BASE_URL=https://ollama.com
+LLM_API_KEY=prod_api_key_here
+LLM_MODEL=llama3.1:8b
+```
+
+Test with Postman:
+
+- Method: GET
+- URL: http://127.0.0.1:8000/debug/llm-test
+- Expected: {"status":"ok","message":"LLM reachable"}
+
+Warning: never commit `.env.local` or API keys.
+
 ## 9. Install Python Dependencies
 
 ```bash

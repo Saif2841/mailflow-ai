@@ -9,31 +9,69 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 final class OllamaService
 {
     private string $baseUrl;
+    private string $apiKey;
 
     public function __construct(
         private HttpClientInterface $httpClient,
-        #[Autowire('%env(OLLAMA_HOST)%')]
-        string $ollamaHost,
-        #[Autowire('%env(OLLAMA_MODEL)%')]
+        #[Autowire('%env(LLM_BASE_URL)%')]
+        string $llmBaseUrl,
+        #[Autowire('%env(default::LLM_API_KEY)%')]
+        string $llmApiKey,
+        #[Autowire('%env(LLM_MODEL)%')]
         private string $defaultModel
     ) {
-        $this->baseUrl = rtrim($ollamaHost, '/');
+        $this->baseUrl = rtrim($llmBaseUrl, '/');
+        $this->apiKey = trim($llmApiKey);
     }
 
     public function generate(string $model, string $prompt, string $system = ''): string
     {
-        $response = $this->httpClient->request('POST', $this->baseUrl.'/api/generate', [
+        if ($this->baseUrl === '') {
+            throw new RuntimeException('LLM base URL is missing. Set LLM_BASE_URL.');
+        }
+
+        if ($this->apiKey === '') {
+            throw new RuntimeException('LLM API key is missing. Set LLM_API_KEY.');
+        }
+
+        if (trim($model) === '') {
+            throw new RuntimeException('LLM model is missing. Set LLM_MODEL or pass a model.');
+        }
+
+        $headers = [
+            'Authorization' => 'Bearer '.$this->apiKey,
+        ];
+
+        $httpResponse = $this->httpClient->request('POST', $this->baseUrl.'/api/generate', [
             'json' => [
                 'model' => $model,
                 'prompt' => $prompt,
                 'system' => $system,
                 'stream' => false,
             ],
+            'headers' => $headers,
             'timeout' => 60,
-        ])->toArray(false);
+        ]);
+
+        $statusCode = $httpResponse->getStatusCode();
+        $body = $httpResponse->getContent(false);
+        $response = [];
+
+        if ($body !== '') {
+            $decoded = json_decode($body, true);
+            if (is_array($decoded)) {
+                $response = $decoded;
+            }
+        }
+
+        if ($statusCode >= 400) {
+            $errorMessage = $response['error'] ?? $response['message'] ?? $body;
+            throw new RuntimeException('LLM request failed (HTTP '.$statusCode.'): '.$errorMessage);
+        }
 
         if (!isset($response['response']) || !is_string($response['response'])) {
-            throw new RuntimeException('Ollama response missing output text.');
+            $knownKeys = implode(', ', array_keys($response));
+            throw new RuntimeException('LLM response missing output text. Keys: '.$knownKeys);
         }
 
         return trim($response['response']);
@@ -54,6 +92,10 @@ final class OllamaService
 
     public function generateDefault(string $prompt, string $system = ''): string
     {
+        if (trim($this->defaultModel) === '') {
+            throw new RuntimeException('Default LLM model is missing. Set LLM_MODEL.');
+        }
+
         return $this->generate($this->defaultModel, $prompt, $system);
     }
 

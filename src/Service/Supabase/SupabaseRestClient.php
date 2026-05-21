@@ -58,6 +58,18 @@ class SupabaseRestClient
         ]);
     }
 
+    public function upsert(string $table, array $data, string $onConflict): array
+    {
+        $url = '/rest/v1/'.$table.'?'.http_build_query(['on_conflict' => $onConflict], '', '&', PHP_QUERY_RFC3986);
+
+        return $this->requestJson('POST', $url, [
+            'json' => $data,
+            'headers' => [
+                'Prefer' => 'resolution=merge-duplicates,return=representation',
+            ],
+        ]);
+    }
+
     public function update(string $table, string $id, array $data): array
     {
         $url = '/rest/v1/'.$table.'?'.http_build_query(['id' => 'eq.'.$id], '', '&', PHP_QUERY_RFC3986);
@@ -68,6 +80,41 @@ class SupabaseRestClient
                 'Prefer' => 'return=representation',
             ],
         ]);
+    }
+
+    public function count(string $table, array $filters = []): int
+    {
+        $query = ['select' => 'id'];
+
+        foreach ($filters as $column => $value) {
+            $filterValue = $this->buildFilterValue($value);
+            if ($filterValue === null) {
+                continue;
+            }
+
+            $query[$column] = $filterValue;
+        }
+
+        $url = '/rest/v1/'.$table.'?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+
+        $response = $this->httpClient->request('GET', $this->baseUrl.$url, [
+            'headers' => $this->buildHeaders([
+                'Prefer' => 'count=exact',
+            ]),
+        ]);
+
+        $headers = $response->getHeaders(false);
+        $contentRange = $headers['content-range'][0] ?? '';
+        if (is_string($contentRange) && str_contains($contentRange, '/')) {
+            $parts = explode('/', $contentRange);
+            $count = $parts[1] ?? '';
+            if (is_numeric($count)) {
+                return (int) $count;
+            }
+        }
+
+        $data = $response->toArray(false);
+        return is_array($data) ? count($data) : 0;
     }
 
     public function uploadFile(string $bucket, string $path, string $fileContent, string $mimeType): string
@@ -101,6 +148,28 @@ class SupabaseRestClient
         $this->httpClient->request('DELETE', $this->baseUrl.$url, [
             'headers' => $this->buildHeaders(),
         ])->getStatusCode();
+    }
+
+    public function createSignedUrl(string $bucket, string $path, int $expiresIn): ?string
+    {
+        $storagePath = $this->encodePath($path);
+        $url = '/storage/v1/object/sign/'.$bucket.'/'.$storagePath;
+
+        $response = $this->requestJson('POST', $url, [
+            'json' => [
+                'expiresIn' => $expiresIn,
+            ],
+        ]);
+
+        if (isset($response['signedURL'])) {
+            return $response['signedURL'];
+        }
+
+        if (isset($response['signedUrl'])) {
+            return $response['signedUrl'];
+        }
+
+        return null;
     }
 
     private function requestJson(string $method, string $path, array $options = []): array

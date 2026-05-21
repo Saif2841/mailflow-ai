@@ -1,0 +1,43 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Case{% endblock %}
+
+{% block body %}
+<h1 class="h3 mb-4">Case {{ case.id }}</h1>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">Original email</div>
+            <div class="card-body">
+                <div class="text-muted small">{{ email.body_text ?? 'No email body' }}</div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header">Reply draft</div>
+            <div class="card-body">
+                <form method="post" action="/cases/{{ case.id }}/send-reply">
+                    <textarea class="form-control" name="reply" rows="8">{{ case.draft_reply ?? '' }}</textarea>
+                    <input type="hidden" name="_token" value="{{ csrf_token('case_reply_' ~ case.id) }}">
+                    <button class="btn btn-success mt-3" type="submit">Send Reply</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header">Case timeline</div>
+            <ul class="list-group list-group-flush">
+                {% for event in events %}
+                    <li class="list-group-item">
+                        {{ event.created_at }} - {{ event.event_type }}
+                    </li>
+                {% else %}
+                    <li class="list-group-item text-muted">No events.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -9,7 +9,7 @@
     .example-wrapper { margin: 2rem auto; max-width: 1100px; width: 95%; font: 16px/1.6 "Space Grotesk", sans-serif; color: #1d1b16; }
     .page-title { font-size: 2.2rem; margin-bottom: 0.5rem; }
     .subtle { color: #5a544b; }
-    .filters { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 0.75rem; margin: 1.5rem 0; }
+    .filters { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr auto; gap: 0.75rem; margin: 1.5rem 0; }
     .filters input, .filters select { padding: 0.6rem 0.8rem; border-radius: 10px; border: 1px solid #d6d1c8; background: #fff; font: inherit; }
     .filters button { padding: 0.6rem 1.2rem; border-radius: 10px; border: 0; background: #1d1b16; color: #fff; font-weight: 600; cursor: pointer; }
     .table-wrap { background: #fff; border-radius: 16px; box-shadow: 0 12px 30px rgba(20, 16, 10, 0.08); overflow: hidden; }
@@ -22,8 +22,15 @@
     .badge.processing { background: #cfe7ff; color: #0b4a6f; }
     .badge.done { background: #d9f7e3; color: #0a5a3a; }
     .badge.failed { background: #ffd6d6; color: #7a0b0b; }
+    .badge.review { background: #ffe2cc; color: #8f3e00; }
+    .badge.ok { background: #e2f4de; color: #215c2c; }
     .attachments { font-size: 0.85rem; color: #4f4a42; }
     .attachments span { display: block; }
+    .ai-meta { display: grid; gap: 0.35rem; min-width: 220px; }
+    .ai-category { font-weight: 700; text-transform: capitalize; }
+    .ai-summary { color: #5a544b; font-size: 0.92rem; line-height: 1.4; }
+    .routing { text-transform: capitalize; }
+    .muted { color: #7a756d; }
     .empty-state { padding: 1.5rem; background: #fff; border-radius: 16px; box-shadow: 0 12px 30px rgba(20, 16, 10, 0.08); }
     @media (max-width: 900px) {
         .filters { grid-template-columns: 1fr; }
@@ -52,6 +59,11 @@
             <option value="true" {% if filters.has_attachments == 'true' %}selected{% endif %}>Has attachments</option>
             <option value="false" {% if filters.has_attachments == 'false' %}selected{% endif %}>No attachments</option>
         </select>
+        <select name="needs_human_review">
+            <option value="">All review states</option>
+            <option value="true" {% if filters.needs_human_review == 'true' %}selected{% endif %}>Needs human review</option>
+            <option value="false" {% if filters.needs_human_review == 'false' %}selected{% endif %}>No human review</option>
+        </select>
         <button type="submit">Apply</button>
     </form>
 
@@ -65,6 +77,9 @@
                         <th>Received</th>
                         <th>From</th>
                         <th>Subject</th>
+                        <th>AI</th>
+                        <th>Review</th>
+                        <th>Routing decision</th>
                         <th>Status</th>
                         <th>Attachments</th>
                     </tr>
@@ -72,10 +87,35 @@
                 <tbody>
                     {% for email in emails %}
                         {% set emailAttachments = attachments[email.id]|default([]) %}
+                        {% set classification = classifications[email.id]|default(null) %}
+                        {% set routingDecision = routing_decisions[email.id]|default(null) %}
                         <tr>
                             <td>{{ email.received_at }}</td>
                             <td>{{ email.sender_email }}</td>
                             <td>{{ email.subject }}</td>
+                            <td>
+                                {% if classification %}
+                                    <div class="ai-meta">
+                                        <span class="ai-category">{{ classification.category|replace({'_': ' '}) }}</span>
+                                        <span class="muted">{{ (classification.confidence * 100)|round }}% confidence</span>
+                                        <span class="ai-summary">{{ classification.extracted_summary ?: 'No summary' }}</span>
+                                    </div>
+                                {% else %}
+                                    <span class="muted">Not classified yet</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if classification and classification.requires_human_review %}
+                                    <span class="badge review">Needs human review</span>
+                                {% elseif classification %}
+                                    <span class="badge ok">No review needed</span>
+                                {% else %}
+                                    <span class="muted">Unknown</span>
+                                {% endif %}
+                            </td>
+                            <td class="routing">
+                                {{ routingDecision ?: 'Pending' }}
+                            </td>
                             <td>
                                 <span class="badge {{ email.processing_status }}">
                                     {{ email.processing_status }}
@@ -90,6 +130,40 @@
                                     {% endfor %}
                                 {% endif %}
                             </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+
+    <h2 class="page-title" style="margin-top: 2.5rem; font-size: 1.6rem;">Recent Orders</h2>
+    <p class="subtle">Latest orders imported from CSV.</p>
+
+    {% if orders is empty %}
+        <div class="empty-state">No orders imported yet.</div>
+    {% else %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Customer</th>
+                        <th>Email</th>
+                        <th>Product</th>
+                        <th>Total</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                        <tr>
+                            <td>{{ order.order_number }}</td>
+                            <td>{{ order.customer_name }}</td>
+                            <td>{{ order.customer_email }}</td>
+                            <td>{{ order.product_name }}</td>
+                            <td>{{ order.total_amount }}</td>
+                            <td>{{ order.shipping_status }}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

@@ -1,0 +1,16 @@
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+  const supabaseUrl = '{{ SUPABASE_URL }}';
+  const supabaseAnonKey = '{{ SUPABASE_ANON_KEY }}';
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
+  supabase
+    .channel('customer_cases')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_cases' }, payload => {
+      if (typeof refreshCasesTable === 'function') {
+        refreshCasesTable(payload);
+      }
+    })
+    .subscribe();
+</script>

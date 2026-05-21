@@ -1,0 +1,44 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Cases{% endblock %}
+
+{% block body %}
+<h1 class="h3 mb-4">Cases</h1>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Customer</th>
+                    <th>Order</th>
+                    <th>Type</th>
+                    <th>Urgency</th>
+                    <th>Status</th>
+                    <th>Assigned</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for case in cases %}
+                    <tr>
+                        <td>{{ case.customer_email }}</td>
+                        <td>{{ case.order_id ?: '-' }}</td>
+                        <td>{{ case.case_type }}</td>
+                        <td><span class="badge bg-danger">{{ case.urgency }}</span></td>
+                        <td>{{ case.status }}</td>
+                        <td>{{ case.assigned_to ?: '-' }}</td>
+                        <td><a href="/cases/{{ case.id }}">View</a></td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No cases.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% include 'dashboard/_cases_realtime_snippet.html.twig' %}
+{% endblock %}

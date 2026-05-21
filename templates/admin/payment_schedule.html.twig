@@ -1,0 +1,52 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Payment Schedule{% endblock %}
+
+{% block body %}
+<h1 class="h3 mb-4">Payment Schedule</h1>
+
+<div class="mb-3">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="text-muted">Total amount</div>
+            <div class="fs-4 fw-bold">{{ total }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Vendor</th>
+                    <th>Amount</th>
+                    <th>Approved</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}
+                    <tr>
+                        <td>{{ invoice.invoice_number }}</td>
+                        <td>{{ invoice.vendor_name }}</td>
+                        <td>{{ invoice.amount }}</td>
+                        <td>{{ invoice.approved_at }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">No invoices.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<form method="post" action="/payment-schedule/export" class="d-inline">
+    <button class="btn btn-outline-primary mt-3" type="submit">Download CSV</button>
+</form>
+<form method="post" action="/payment-schedule/send" class="d-inline">
+    <button class="btn btn-success mt-3" type="submit">Send to Finance</button>
+</form>
+{% endblock %}

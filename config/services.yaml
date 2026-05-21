@@ -24,5 +24,21 @@ services:
             $supabaseUrl: '%env(SUPABASE_URL)%'
             $serviceRoleKey: '%env(SUPABASE_SERVICE_ROLE_KEY)%'
 
+    App\Service\OllamaService:
+        arguments:
+            $llmBaseUrl: '%env(LLM_BASE_URL)%'
+            $llmApiKey: '%env(default::LLM_API_KEY)%'
+            $defaultModel: '%env(LLM_MODEL)%'
+
+    App\Security\SupabaseJwtVerifier:
+        arguments:
+            $jwtSecret: '%env(SUPABASE_JWT_SECRET)%'
+            $supabaseUrl: '%env(SUPABASE_URL)%'
+            $supabaseAnonKey: '%env(SUPABASE_ANON_KEY)%'
+
+    App\Security\SupabaseAuthAuthenticator:
+        arguments:
+            $adminEmails: '%env(default::ADMIN_EMAILS)%'
+
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

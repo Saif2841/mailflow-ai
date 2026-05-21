@@ -1,0 +1,68 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Invoices{% endblock %}
+
+{% block body %}
+<h1 class="h3 mb-4">Invoices</h1>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th></th>
+                    <th>Vendor</th>
+                    <th>Invoice #</th>
+                    <th>Date</th>
+                    <th>Amount</th>
+                    <th>Project</th>
+                    <th>Approval</th>
+                    <th>Payment</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}
+                    <tr>
+                        <td><input type="checkbox" name="invoice_ids[]" form="export-form" value="{{ invoice.id }}"></td>
+                        <td>{{ invoice.vendor_name }}</td>
+                        <td><a href="/invoices/{{ invoice.id }}">{{ invoice.invoice_number }}</a></td>
+                        <td>{{ invoice.invoice_date }}</td>
+                        <td>{{ invoice.amount }}</td>
+                        <td>{{ invoice.project_name }}</td>
+                        <td><span class="badge bg-warning">{{ invoice.approval_status }}</span></td>
+                        <td><span class="badge bg-secondary">{{ invoice.payment_status }}</span></td>
+                        <td>
+                            <form method="post" action="/invoices/{{ invoice.id }}/approve-action" class="d-inline">
+                                <input type="hidden" name="_token" value="{{ csrf_token('invoice_action_' ~ invoice.id) }}">
+                                <button class="btn btn-sm btn-success" type="submit">Approve</button>
+                            </form>
+                            <form method="post" action="/invoices/{{ invoice.id }}/reject-action" class="d-inline">
+                                <input type="hidden" name="_token" value="{{ csrf_token('invoice_action_' ~ invoice.id) }}">
+                                <button class="btn btn-sm btn-outline-danger" type="submit">Reject</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted">No invoices.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<form method="post" action="/invoices/export" id="export-form">
+    <button class="btn btn-outline-primary mt-3" type="submit">Download QuickBooks CSV</button>
+</form>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+  const supabase = createClient('{{ SUPABASE_URL }}', '{{ SUPABASE_ANON_KEY }}');
+  supabase
+    .channel('invoices')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'invoice_records' }, () => location.reload())
+    .subscribe();
+</script>
+{% endblock %}

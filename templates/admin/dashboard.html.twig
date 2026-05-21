@@ -1,0 +1,99 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block body %}
+<h1 class="h3 mb-4">Dashboard</h1>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Emails today</div>
+                <div class="fs-4 fw-bold">{{ emails_today }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Pending invoices</div>
+                <div class="fs-4 fw-bold">{{ pending_invoices }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Open cases</div>
+                <div class="fs-4 fw-bold">{{ open_cases }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="text-muted">Awaiting approval</div>
+                <div class="fs-4 fw-bold">{{ awaiting_approval }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header">Activity feed</div>
+            <div class="list-group list-group-flush">
+                {% for item in activity %}
+                    <div class="list-group-item d-flex justify-content-between">
+                        <div>
+                            <div class="fw-semibold">{{ item.action }}</div>
+                            <div class="text-muted small">{{ item.entity_type }} · {{ item.entity_id }}</div>
+                        </div>
+                        <div class="text-muted small">{{ item.created_at }}</div>
+                    </div>
+                {% else %}
+                    <div class="list-group-item text-muted">No activity yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-header">Case types</div>
+            <div class="card-body">
+                <canvas id="caseChart" height="220"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const ctx = document.getElementById('caseChart');
+    const labels = {{ case_breakdown_labels|json_encode|raw }};
+    const data = {{ case_breakdown_values|json_encode|raw }};
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data,
+                backgroundColor: ['#3ecf8e', '#f59e0b', '#ef4444', '#6366f1', '#14b8a6', '#64748b']
+            }]
+        }
+    });
+</script>
+
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+  const supabase = createClient('{{ SUPABASE_URL }}', '{{ SUPABASE_ANON_KEY }}');
+  supabase
+    .channel('dashboard-stats')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'emails' }, () => location.reload())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_records' }, () => location.reload())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_cases' }, () => location.reload())
+    .subscribe();
+</script>
+{% endblock %}

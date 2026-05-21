@@ -1,0 +1,48 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Audit Log{% endblock %}
+
+{% block body %}
+<h1 class="h3 mb-4">Audit Log</h1>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-striped mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Time</th>
+                    <th>Entity</th>
+                    <th>Action</th>
+                    <th>Actor</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                    <tr x-data="{open:false}">
+                        <td>{{ log.created_at }}</td>
+                        <td>{{ log.entity_type }} / {{ log.entity_id }}</td>
+                        <td>{{ log.action }}</td>
+                        <td>{{ log.actor }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-secondary" @click="open = !open">Toggle</button>
+                            <pre class="mt-2" x-show="open">{{ log.data|json_encode(constant('JSON_PRETTY_PRINT')) }}</pre>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">No logs.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<nav class="mt-3">
+    <ul class="pagination">
+        <li class="page-item"><a class="page-link" href="?page={{ page - 1 }}">Prev</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ page + 1 }}">Next</a></li>
+    </ul>
+</nav>
+{% endblock %}
